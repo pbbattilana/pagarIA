@@ -1,9 +1,8 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect } from 'react';
+import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { useFlow } from '../flow';
 import { DetectedView, PeopleView, SummaryView, ReadyView } from '../components/FlowViews';
-import { colors, radius } from '../theme';
-import { hideBubble } from '../native/paymentEvents';
+import { hideBubble, resizeBubble, subscribeToBubbleClose } from '../native/paymentEvents';
 
 /**
  * Second React root rendered inside the floating system overlay. It subscribes
@@ -30,12 +29,12 @@ function BubbleFlow() {
     case 'ready':
       return <ReadyView split={state.split} onReset={api.onReset} />;
     default:
-      return <View style={styles.empty} />;
+      return null;
   }
 }
 
 export default function BubbleRoot() {
-  const { state } = useFlow();
+  const { state, api } = useFlow();
 
   useEffect(() => {
     if (state.status === 'idle') {
@@ -43,9 +42,23 @@ export default function BubbleRoot() {
     }
   }, [state.status]);
 
+  // Let the overlay window hug the rendered card: whenever the content's
+  // measured height changes, resize the native window to match.
+  const onContentLayout = useCallback((event: LayoutChangeEvent) => {
+    const height = Math.round(event.nativeEvent.layout.height);
+    if (height > 0) {
+      resizeBubble(height);
+    }
+  }, []);
+
+  // Native close (✕) resets the flow so a future payment reopens the bubble.
+  useEffect(() => subscribeToBubbleClose(api.onReset), [api]);
+
   return (
     <View style={styles.root}>
-      <BubbleFlow />
+      <View style={styles.content} onLayout={onContentLayout}>
+        <BubbleFlow />
+      </View>
     </View>
   );
 }
@@ -53,12 +66,9 @@ export default function BubbleRoot() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
-  empty: {
-    flex: 1,
-    backgroundColor: colors.background,
+  content: {
+    width: '100%',
   },
 });

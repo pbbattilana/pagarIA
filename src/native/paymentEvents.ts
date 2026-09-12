@@ -17,6 +17,8 @@ type NativePaymentBubble = {
   isOverlayPermissionGranted: () => Promise<boolean>;
   openOverlayPermissionSettings: () => void;
   shareText: (message: string) => void;
+  shareImage: (message: string, base64Png: string) => void;
+  resizeBubble: (heightDp: number) => void;
 };
 
 const module: NativePaymentEvents | undefined =
@@ -38,6 +40,15 @@ export function subscribeToPaymentEvents(
   if (!emitter) return () => {};
   const sub = emitter.addListener('PaymentEvent', payload => {
     onEvent(payload as unknown as NotificationEvent);
+  });
+  return () => sub.remove();
+}
+
+/** Notifies when the user closes the bubble from its native ✕ button. */
+export function subscribeToBubbleClose(onClose: () => void): () => void {
+  if (!emitter) return () => {};
+  const sub = emitter.addListener('BubbleClose', () => {
+    onClose();
   });
   return () => sub.remove();
 }
@@ -126,4 +137,16 @@ export function shareText(message: string): void {
   if (bubbleModule) {
     bubbleModule.shareText(message);
   }
+}
+
+/** Shares a base64-encoded PNG of the payment QR via the native share sheet. */
+export function shareImage(message: string, base64Png: string): void {
+  if (bubbleModule) {
+    bubbleModule.shareImage(message, base64Png);
+  }
+}
+
+/** Asks native to resize the overlay window to fit the given content height. */
+export function resizeBubble(heightDp: number): void {
+  bubbleModule?.resizeBubble(heightDp);
 }
