@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -10,6 +9,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button, Card, Chip } from './ui';
 import { colors, radius, spacing } from '../theme';
 import { formatAmount } from '../paymentParser';
+import { shareText } from '../native/paymentEvents';
 import type { Payment, SplitRequest } from '../types';
 
 function MerchantLine({ merchant }: { merchant?: string }) {
@@ -152,7 +152,7 @@ export function ReadyView({
       amountPerPerson,
       payment.currency,
     )} de la cuenta de ${payment.merchant ?? 'la cuenta compartida'}. ${payload}`;
-    Share.share({ message }).catch(() => {});
+    shareText(message);
   };
 
   return (

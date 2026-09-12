@@ -7,7 +7,10 @@ import com.facebook.react.uimanager.ViewManager
 
 class PaymentEventsPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-    listOf(PaymentEventsModule.createModule(reactContext))
+    listOf(
+      PaymentEventsModule.createModule(reactContext),
+      PaymentBubbleModule(reactContext),
+    )
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
     emptyList()
