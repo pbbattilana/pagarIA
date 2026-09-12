@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -10,6 +9,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button, Card, Chip } from './ui';
 import { colors, radius, spacing } from '../theme';
 import { formatAmount } from '../paymentParser';
+import { shareImage } from '../native/paymentEvents';
 import type { Payment, SplitRequest } from '../types';
 
 function MerchantLine({ merchant }: { merchant?: string }) {
@@ -146,13 +146,19 @@ export function ReadyView({
   onReset: () => void;
 }) {
   const { payment, amountPerPerson, people, payload } = split;
+  const qrRef = useRef<any>(null);
 
   const share = () => {
     const message = `Te corresponde ${formatAmount(
       amountPerPerson,
       payment.currency,
     )} de la cuenta de ${payment.merchant ?? 'la cuenta compartida'}. ${payload}`;
-    Share.share({ message }).catch(() => {});
+    qrRef.current?.toDataURL((dataUrl: string) => {
+      // react-native-qrcode-svg returns an image/png data URL; strip the
+      // leading "data:image/png;base64," before sending to native.
+      const base64 = dataUrl.split(',')[1] ?? dataUrl;
+      shareImage(message, base64);
+    });
   };
 
   return (
@@ -163,7 +169,15 @@ export function ReadyView({
       <Text style={styles.merchant}>{payment.merchant}</Text>
       <View style={styles.qrWrap}>
         <View style={styles.qrBox}>
-          <QRCode value={payload} size={220} color={colors.text} backgroundColor={colors.white} />
+          <QRCode
+            value={payload}
+            size={220}
+            color="#0B1120"
+            backgroundColor={colors.white}
+            getRef={ref => {
+              qrRef.current = ref;
+            }}
+          />
         </View>
       </View>
       <Text style={styles.qrHint}>{payload}</Text>

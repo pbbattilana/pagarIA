@@ -1,15 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CopilotKitProvider } from '@copilotkit/react-native/headless';
-import { FlowContext, useFlow } from './src/flow';
-import { useSplitFlow } from './src/useSplitFlow';
+import { useFlow } from './src/flow';
 import { usePaymentEvents } from './src/hooks/usePaymentEvents';
 import { parsePayment, looksLikePayment } from './src/paymentParser';
 import {
   hasNotificationAccess,
   openNotificationAccessSettings,
   simulatePayment,
+  showBubble,
+  hideBubble,
+  isOverlayPermissionGranted,
+  openOverlayPermissionSettings,
 } from './src/native/paymentEvents';
 import { COPILOTKIT_RUNTIME_URL, DEMO_PAYMENTS } from './src/config';
 import { PaymentsAgent } from './src/agent/PaymentsAgent';
@@ -75,12 +78,28 @@ function PaymentEventsBridge({
   return null;
 }
 
+function BubbleBridge() {
+  const { state } = useFlow();
+
+  useEffect(() => {
+    if (state.status !== 'idle') {
+      showBubble().catch(() => {});
+    } else {
+      hideBubble().catch(() => {});
+    }
+  }, [state.status]);
+
+  return null;
+}
+
 function IdleScreen({
   notifAccess,
+  overlayGranted,
   onDevToggle,
   devOpen,
 }: {
   notifAccess: boolean | null;
+  overlayGranted: boolean;
   onDevToggle: () => void;
   devOpen: boolean;
 }) {
@@ -97,6 +116,12 @@ function IdleScreen({
       {notifAccess !== true && (
         <View style={styles.marginTop}>
           <Button label="Otorgar acceso a notificaciones" onPress={openNotificationAccessSettings} />
+        </View>
+      )}
+
+      {!overlayGranted && (
+        <View style={styles.marginTop}>
+          <Button label="Permitir superposición (burbuja)" onPress={openOverlayPermissionSettings} />
         </View>
       )}
 
@@ -132,11 +157,20 @@ function useNotificationAccess(): boolean | null {
   return granted;
 }
 
+function useOverlayPermission(): boolean {
+  const [granted, setGranted] = useState(false);
+  useEffect(() => {
+    isOverlayPermissionGranted().then(setGranted);
+  }, []);
+  return granted;
+}
+
 function AppRoot() {
   const insets = useSafeAreaInsets();
   const { state, api } = useFlow();
   const [devOpen, setDevOpen] = useState(false);
   const notifAccess = useNotificationAccess();
+  const overlayGranted = useOverlayPermission();
 
   const runtimeEnabled = COPILOTKIT_RUNTIME_URL != null;
 
@@ -157,12 +191,14 @@ function AppRoot() {
       </View>
 
       <PaymentEventsBridge events={events} runtimeEnabled={runtimeEnabled} onParsed={handleParsed} />
+      <BubbleBridge />
       {runtimeEnabled && latestEvent ? <PaymentsAgent event={latestEvent} /> : null}
 
       <FlowSurface />
       {state.status === 'idle' && (
         <IdleScreen
           notifAccess={notifAccess}
+          overlayGranted={overlayGranted}
           devOpen={devOpen}
           onDevToggle={() => setDevOpen(v => !v)}
         />
@@ -172,9 +208,7 @@ function AppRoot() {
 }
 
 function App() {
-  const { state, flowApi } = useSplitFlow();
   const runtimeEnabled = COPILOTKIT_RUNTIME_URL != null;
-  const flowValue = useMemo(() => ({ state, api: flowApi }), [state, flowApi]);
 
   const content = runtimeEnabled ? (
     <CopilotKitProvider runtimeUrl={COPILOTKIT_RUNTIME_URL!}>
@@ -186,7 +220,7 @@ function App() {
 
   return (
     <SafeAreaProvider>
-      <FlowContext.Provider value={flowValue}>{content}</FlowContext.Provider>
+      {content}
     </SafeAreaProvider>
   );
 }

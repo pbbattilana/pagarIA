@@ -11,9 +11,24 @@ type NativePaymentEvents = {
   simulatePayment: (text: string) => void;
 };
 
+type NativePaymentBubble = {
+  showBubble: () => Promise<boolean>;
+  hideBubble: () => Promise<void>;
+  isOverlayPermissionGranted: () => Promise<boolean>;
+  openOverlayPermissionSettings: () => void;
+  shareText: (message: string) => void;
+  shareImage: (message: string, base64Png: string) => void;
+  resizeBubble: (heightDp: number) => void;
+};
+
 const module: NativePaymentEvents | undefined =
   Platform.OS === 'android'
     ? (NativeModules.PaymentEvents as NativePaymentEvents)
+    : undefined;
+
+const bubbleModule: NativePaymentBubble | undefined =
+  Platform.OS === 'android'
+    ? (NativeModules.PaymentBubble as NativePaymentBubble)
     : undefined;
 
 const emitter = module ? new NativeEventEmitter(NativeModules.PaymentEvents) : null;
@@ -25,6 +40,15 @@ export function subscribeToPaymentEvents(
   if (!emitter) return () => {};
   const sub = emitter.addListener('PaymentEvent', payload => {
     onEvent(payload as unknown as NotificationEvent);
+  });
+  return () => sub.remove();
+}
+
+/** Notifies when the user closes the bubble from its native ✕ button. */
+export function subscribeToBubbleClose(onClose: () => void): () => void {
+  if (!emitter) return () => {};
+  const sub = emitter.addListener('BubbleClose', () => {
+    onClose();
   });
   return () => sub.remove();
 }
@@ -83,4 +107,46 @@ export function subscribeToSimulatedEvents(onEvent: (event: NotificationEvent) =
   return () => {
     FORWARD_BUS.delete(onEvent);
   };
+}
+
+/** Shows the floating bubble overlay with the split flow. */
+export function showBubble(): Promise<boolean> {
+  if (!bubbleModule) return Promise.resolve(false);
+  return bubbleModule.showBubble();
+}
+
+/** Hides the floating bubble overlay. */
+export function hideBubble(): Promise<void> {
+  if (!bubbleModule) return Promise.resolve();
+  return bubbleModule.hideBubble();
+}
+
+/** Checks if SYSTEM_ALERT_WINDOW permission is granted. */
+export function isOverlayPermissionGranted(): Promise<boolean> {
+  if (!bubbleModule) return Promise.resolve(false);
+  return bubbleModule.isOverlayPermissionGranted();
+}
+
+/** Opens the system settings to grant SYSTEM_ALERT_WINDOW permission. */
+export function openOverlayPermissionSettings(): void {
+  bubbleModule?.openOverlayPermissionSettings();
+}
+
+/** Starts the share sheet from native (works even over other apps). */
+export function shareText(message: string): void {
+  if (bubbleModule) {
+    bubbleModule.shareText(message);
+  }
+}
+
+/** Shares a base64-encoded PNG of the payment QR via the native share sheet. */
+export function shareImage(message: string, base64Png: string): void {
+  if (bubbleModule) {
+    bubbleModule.shareImage(message, base64Png);
+  }
+}
+
+/** Asks native to resize the overlay window to fit the given content height. */
+export function resizeBubble(heightDp: number): void {
+  bubbleModule?.resizeBubble(heightDp);
 }
